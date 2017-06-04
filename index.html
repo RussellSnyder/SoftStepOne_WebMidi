@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src="https://rawgit.com/cotejp/webmidi/master/src/webmidi.js"></script>
+</head>
+<body>
+
+<script>
+    //MIDI stuff
+    const BUTTON_CHANNEL = 153
+    const EXPRESSION_CHANNEL = 185
+    const EXPRESSION_NOTE = 120
+    const KEY_MAP = {
+        60: 1,
+        61: 2,
+        62: 3,
+        63: 4,
+        64: 5,
+        65: 6,
+        66: 7,
+        67: 8,
+        68: 9,
+        69: 0,
+        120: 'expression'
+    }
+
+    const BACKLIGHT_ON = [240, 0, 27, 72, 122, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 5, 8, 37, 1, 32, 0, 0, 123, 44, 0, 0, 0, 12, 247]
+    const BACKLIGHT_OFF = [240, 0, 27, 72, 122, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 5, 8, 37, 0, 32, 0, 0, 76, 28, 0, 0, 0, 12, 247]
+
+
+    var SS_State = {
+        1: { active: 0, mappedToExpression: false},
+        2: { active: 0, mappedToExpression: false},
+        3: { active: 0, mappedToExpression: false},
+        4: { active: 0, mappedToExpression: false},
+        5: { expressionMapperActive: false},
+        6: { active: 0, mappedToExpression: false},
+        7: { active: 0, mappedToExpression: false},
+        8: { active: 0, mappedToExpression: false},
+        9: { active: 0, mappedToExpression: false},
+        0: { active: 0, mappedToExpression: false},
+        expression: 0
+    }
+
+    var midi, data, SS_I, SS2_I;
+    // request MIDI access
+    if (navigator.requestMIDIAccess) {
+        navigator.requestMIDIAccess({
+            sysex: true
+        }).then(onMIDISuccess, onMIDIFailure);
+    } else {
+        alert("No MIDI support in your browser.");
+    }
+
+
+    function onMIDIMessage(e) {
+        modifyState(e)
+        console.log(SS_State)
+    }
+
+    function modifyState (e) {
+        var translatedMessage = translateSSMessages(e.data)
+        console.log(translatedMessage)
+        if (translatedMessage) {
+            SS_State[translatedMessage.key] = translatedMessage.value
+        }
+    }
+    function translateSSMessages(array) {
+        var note = array[1];
+        var value = array[2] / 127;
+        if (note === EXPRESSION_NOTE) {
+            return {
+                key: 'expression',
+                value: value
+            }
+        } else if (note !== EXPRESSION_NOTE) {
+            // ignore off messages (0) so more like a toggle
+            if (value) {
+                let newValue = {
+                    active: SS_State[KEY_MAP[note]].active === 0 ? 1 : 0,
+                    mappedToExpression: SS_State[KEY_MAP[note]].mappedToExpression
+                }
+                return {
+                    key: KEY_MAP[note],
+                    value: newValue
+                }
+            } else {
+                return null
+            }
+        } else {
+            console.log(note + ' could not be translated')
+        }
+    }
+
+    // midi functions
+    function onMIDISuccess(midiAccess) {
+        console.log('midi connected')
+//        listInputsAndOutputs(midiAccess)
+        midi = midiAccess; // this is our raw MIDI data, inputs, outputs, and sysex status
+
+        var inputs = midi.inputs.values();
+        // loop over all available inputs and listen for any MIDI input
+        for (var input = inputs.next(); input && !input.done; input = inputs.next()) {
+            // each time there is a midi message call the onMIDIMessage function
+            if (input.name === "SSCOM") {
+                SS_I = input;
+            }
+            if (input.name === "MIDIIN2 (SSCOM)") {
+                SS2_I = input;
+            }
+            input.value.onmidimessage = onMIDIMessage;
+        }
+
+//        SS_I.onmidimessage = onMIDIMessage;
+//        console.log(SS_I);
+//
+//
+//        SS2_I.value.onmidimessage = onMIDIMessage;
+        // loop over all available inputs and listen for any MIDI input
+//        for (var input = inputs.next(); input && !input.done; input = inputs.next()) {
+//            // each time there is a midi message call the onMIDIMessage function
+//            input.value.onmidimessage = onMIDIMessage;
+//        }
+
+        var output = midi.outputs.values().next().value;
+
+//        console.log(output)
+//        sendEverything(output)
+
+
+    }
+
+    function sendEverything(output) {
+        setInterval(()=> output.send(BACKLIGHT_ON), 200)
+        setTimeout(() => setInterval(()=> output.send(BACKLIGHT_OFF), 200), 100)
+//        for (var i = 1; i <= 127; i ++) {
+//            for (var j = 1; j <= 127; j ++) {
+//                let onMessage = [153, j, i]
+//                let offMessage = [153, j, i]
+//                console.log('on: ', onMessage)
+//                output.send(onMessage)
+//                console.log('off: ', offMessage)
+//                output.send( offMessage, window.performance.now() + 1000.0 );
+//            }
+//        }
+    }
+    function onMIDIFailure(error) {
+        console.log("No access to MIDI devices or your browser doesn't support WebMIDI API. Please use WebMIDIAPIShim " + error);
+    }
+
+    function listInputsAndOutputs( midiAccess ) {
+        for (var entry of midiAccess.inputs) {
+            var input = entry[1];
+            console.log( "Input port [type:'" + input.type + "'] id:'" + input.id +
+                    "' manufacturer:'" + input.manufacturer + "' name:'" + input.name +
+                    "' version:'" + input.version + "'" );
+        }
+
+        for (var entry of midiAccess.outputs) {
+            var output = entry[1];
+            console.log( "Output port [type:'" + output.type + "'] id:'" + output.id +
+                    "' manufacturer:'" + output.manufacturer + "' name:'" + output.name +
+                    "' version:'" + output.version + "'" );
+        }
+    }
+</script>
+</body>
+</html>
