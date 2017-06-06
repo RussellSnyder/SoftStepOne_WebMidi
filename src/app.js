@@ -106,3 +106,10 @@ function onMIDIFailure(error) {
     console.log("No access to MIDI devices or your browser doesn't support WebMIDI API. Please use WebMIDIAPIShim " + error);
 }
 
+chrome.experimental.socket.create('tcp', '127.0.0.1', 8080, function(socketInfo) {
+    console.log(chrome)
+    console.log(socketInfo)
+    chrome.experimental.socket.connect(socketInfo.socketId, function (result) {
+        chrome.experimental.socket.write(socketInfo.socketId, "Hello, world!");
+    });
+});

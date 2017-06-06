@@ -21,6 +21,8 @@
     "webpack": "^2.6.1"
   },
   "dependencies": {
+    "buffer": "^5.0.6",
+    "dgram": "^1.0.1",
     "lodash": "^4.17.4"
   }
 }
